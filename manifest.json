@@ -1,37 +1,18 @@
 {
   "name": "Mis Compras",
   "short_name": "Compras",
-  "description": "Lista de compras inteligente con categorías, cantidades y múltiples listas",
+  "description": "Lista de compras completa: categorías, modo compra, historial, drag & drop y más",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#fefcf8",
+  "background_color": "#f8fafc",
   "theme_color": "#ea580c",
   "lang": "es",
-  "categories": [
-    "productivity",
-    "shopping",
-    "utilities"
-  ],
+  "categories": ["productivity", "shopping", "utilities"],
   "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "1024x1024",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" }
   ]
 }

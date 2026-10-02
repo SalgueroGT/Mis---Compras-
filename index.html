@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#ea580c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="Lista de compras inteligente con categorías, cantidades y modo offline">
+    <meta name="description" content="Lista de compras completa: categorías, cantidades, modo compra, historial y más">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
@@ -17,535 +17,598 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
                     .then(reg => {
-                        console.log('SW registrado ✅');
                         reg.addEventListener('updatefound', () => {
-                            const newWorker = reg.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    if (confirm('¡Nueva versión disponible! ¿Recargar ahora?')) {
-                                        window.location.reload();
-                                    }
+                            const nw = reg.installing;
+                            nw.addEventListener('statechange', () => {
+                                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                                    if (confirm('¡Nueva versión disponible! ¿Recargar ahora?')) location.reload();
                                 }
                             });
                         });
-                    })
-                    .catch(err => console.log('SW error:', err));
+                    }).catch(() => {});
             });
         }
     </script>
     <style>
         :root {
-            --bg: #fefcf8;
-            --card: rgba(255,255,255,0.94);
+            --bg: #f8fafc;
+            --card: rgba(255,255,255,0.88);
             --card-solid: #ffffff;
             --text: #0f172a;
             --muted: #64748b;
             --accent: #ea580c;
             --accent-strong: #c2410c;
             --accent2: #16a34a;
-            --accent2-strong: #15803d;
-            --border: rgba(15,23,42,0.1);
-            --overlay: rgba(0,0,0,0.45);
+            --border: rgba(15,23,42,0.08);
+            --overlay: rgba(15,23,42,0.35);
             --input-bg: rgba(255,255,255,0.95);
             --danger: #dc2626;
-            --shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            --shadow: 0 20px 40px -12px rgba(0,0,0,0.15);
+            --glow: 0 0 40px rgba(234,88,12,0.12);
+            --shine: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
         }
         [data-theme="dark"] {
-            --bg: #0f172a;
-            --card: rgba(30,41,59,0.92);
-            --card-solid: #1e293b;
-            --text: #f1f5f9;
+            --bg: #0b1120;
+            --card: rgba(15,23,42,0.92);
+            --card-solid: #0f172a;
+            --text: #e2e8f0;
             --muted: #94a3b8;
-            --border: rgba(255,255,255,0.1);
-            --overlay: rgba(0,0,0,0.65);
-            --input-bg: rgba(15,23,42,0.9);
-            --shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            --border: rgba(255,255,255,0.06);
+            --overlay: rgba(0,0,0,0.72);
+            --input-bg: rgba(30,41,59,0.95);
+            --shadow: 0 20px 50px -12px rgba(0,0,0,0.6);
+            --glow: 0 0 50px rgba(234,88,12,0.08);
+            --shine: linear-gradient(135deg, rgba(30,41,59,0.95) 0%, rgba(15,23,42,0.9) 100%);
         }
         * { font-family: 'Quicksand', sans-serif; margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            background: linear-gradient(135deg, rgba(15,23,42,0.7), rgba(22,163,74,0.4)),
-                        linear-gradient(160deg, #1e3a2f 0%, #0f172a 50%, #1a2e1a 100%);
-            background-size: cover;
-            background-attachment: fixed;
-            min-height: 100vh;
-            min-height: 100dvh;
-            padding: 16px 14px 40px;
-            color: var(--text);
-            transition: background 0.3s ease;
+            background: linear-gradient(160deg, #f0fdf4 0%, #fff7ed 40%, #f0f9ff 100%);
+            min-height: 100vh; min-height: 100dvh;
+            padding: 14px 12px 50px; color: var(--text);
+            transition: background 0.4s ease;
         }
         [data-theme="dark"] body {
-            background: linear-gradient(135deg, rgba(0,0,0,0.85), rgba(22,163,74,0.25)),
-                        linear-gradient(160deg, #0a0f1a 0%, #0f172a 50%, #0a1a12 100%);
+            background: linear-gradient(160deg, #020617 0%, #0f172a 40%, #020617 100%);
         }
 
-        /* ========== LOADING ========== */
+        /* Loading */
         .pantalla-carga {
-            position: fixed; inset: 0;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            position: fixed; inset: 0; z-index: 9999;
+            background: linear-gradient(135deg, #ea580c, #16a34a);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 9999; transition: opacity 0.5s ease, visibility 0.5s ease;
+            transition: opacity 0.5s, visibility 0.5s;
         }
         .pantalla-carga.oculta { opacity: 0; visibility: hidden; pointer-events: none; }
-        .carga-icono { font-size: 64px; animation: bounce 0.9s ease infinite alternate; margin-bottom: 16px; }
-        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-14px); } }
-        .carga-texto { color: white; font-size: 24px; font-weight: 700; margin-bottom: 20px; }
-        .carga-barra { width: 180px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden; }
-        .carga-progreso { height: 100%; background: white; border-radius: 3px; width: 0%; animation: cargar 1.6s ease forwards; }
+        .carga-icono { font-size: 68px; animation: bounce 0.9s ease infinite alternate; margin-bottom: 14px; }
+        @keyframes bounce { to { transform: translateY(-14px); } }
+        .carga-texto { color: #fff; font-size: 26px; font-weight: 700; margin-bottom: 18px; }
+        .carga-barra { width: 170px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden; }
+        .carga-progreso { height: 100%; background: #fff; width: 0; animation: cargar 1.5s ease forwards; border-radius: 3px; }
         @keyframes cargar { to { width: 100%; } }
 
-        /* ========== LAYOUT ========== */
         .max-w-lg { width: 100%; max-width: 480px; margin: 0 auto; }
         .glass-card {
             background: var(--card);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.4);
-            border-radius: 22px;
-            padding: 22px 18px;
-            margin-bottom: 16px;
-            box-shadow: var(--shadow);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 24px; padding: 20px 16px; margin-bottom: 14px;
+            box-shadow: var(--shadow), var(--glow);
+            position: relative; overflow: hidden;
         }
-        [data-theme="dark"] .glass-card { border-color: rgba(255,255,255,0.08); }
+        [data-theme="light"] .glass-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
+        }
+        [data-theme="dark"] .glass-card {
+            border-color: rgba(255,255,255,0.05);
+            background: rgba(15,23,42,0.88);
+        }
 
-        .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-        h1 { font-size: 26px; font-weight: 700; }
+        .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        h1 { font-size: 24px; font-weight: 700; }
         .gradient-text {
             background: linear-gradient(100deg, var(--accent), var(--accent2));
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
-        .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 18px; line-height: 1.4; }
+        .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
 
         .icon-btn {
-            width: 40px; height: 40px; border-radius: 12px; border: none;
-            background: rgba(0,0,0,0.06); color: var(--text); font-size: 18px;
+            width: 38px; height: 38px; border-radius: 12px; border: none;
+            background: rgba(0,0,0,0.05); color: var(--text); font-size: 17px;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
         }
-        [data-theme="dark"] .icon-btn { background: rgba(255,255,255,0.08); }
+        [data-theme="dark"] .icon-btn { background: rgba(255,255,255,0.07); }
         .icon-btn:active { transform: scale(0.9); }
 
-        /* Stats */
-        .flex { display: flex; }
-        .gap-2 { gap: 8px; } .gap-3 { gap: 10px; }
+        .flex { display: flex; } .gap-2 { gap: 8px; }
         .stat-pill {
             background: var(--input-bg); border: 1px solid var(--border);
-            border-radius: 14px; padding: 12px 8px; text-align: center; flex: 1;
+            border-radius: 14px; padding: 10px 6px; text-align: center; flex: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
-        .stat-num { font-size: 22px; font-weight: 700; color: var(--text); }
-        .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-top: 2px; }
+        [data-theme="light"] .stat-pill { box-shadow: 0 2px 12px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8); }
+        .stat-num { font-size: 20px; font-weight: 700; }
+        .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-top: 1px; }
         .stat-bump { animation: bump 0.2s ease; }
         @keyframes bump { 50% { transform: scale(1.12); } }
 
-        /* Input area */
-        .input-area { margin-top: 18px; }
-        .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .input-area { margin-top: 14px; }
+        .input-row { display: flex; gap: 7px; margin-bottom: 8px; }
         .input-field {
-            flex: 1; padding: 14px 14px; border-radius: 12px; border: 2px solid transparent;
-            background: var(--input-bg); font-size: 16px; color: var(--text);
-            transition: all 0.2s; box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
+            flex: 1; padding: 12px 12px; border-radius: 12px; border: 2px solid transparent;
+            background: var(--input-bg); font-size: 15px; color: var(--text);
+            transition: all 0.2s;
         }
-        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(234,88,12,0.18); }
+        [data-theme="light"] .input-field { box-shadow: inset 0 1px 3px rgba(0,0,0,0.04), 0 1px 0 rgba(255,255,255,0.8); }
+        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(234,88,12,0.15); }
         .input-field::placeholder { color: var(--muted); }
-        .qty-field { width: 64px; flex: none; text-align: center; padding: 14px 6px; }
-        .unit-field { width: 70px; flex: none; padding: 14px 8px; }
+        .qty-field { width: 58px; flex: none; text-align: center; padding: 12px 4px; }
+        .unit-field { width: 62px; flex: none; padding: 12px 6px; }
         .cat-select {
-            width: 100%; padding: 12px 14px; border-radius: 12px; border: 2px solid transparent;
-            background: var(--input-bg); font-size: 14px; color: var(--text); margin-bottom: 10px;
-            appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            width: 100%; padding: 11px 12px; border-radius: 12px; border: 2px solid transparent;
+            background: var(--input-bg); font-size: 13px; color: var(--text); margin-bottom: 8px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
             background-repeat: no-repeat; background-position: right 12px center;
         }
         .cat-select:focus { outline: none; border-color: var(--accent); }
 
         .btn-add {
-            padding: 0 18px; background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-            color: white; border: none; border-radius: 12px; font-size: 22px; font-weight: 700;
-            cursor: pointer; box-shadow: 0 4px 12px rgba(234,88,12,0.35); transition: all 0.2s;
-            min-width: 52px;
+            padding: 0 16px; background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            color: #fff; border: none; border-radius: 12px; font-size: 20px; font-weight: 700;
+            cursor: pointer; box-shadow: 0 4px 14px rgba(234,88,12,0.35); min-width: 48px; transition: all 0.2s;
         }
         .btn-add:active { transform: scale(0.94); }
 
-        /* Main list preview */
-        .section-title {
-            font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase;
-            letter-spacing: 0.05em; margin: 16px 0 10px; display: flex; align-items: center; justify-content: space-between;
+        /* Suggestions */
+        .suggestions {
+            display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px;
+            scrollbar-width: none; -webkit-overflow-scrolling: touch;
         }
-        .preview-list { list-style: none; }
-        .preview-list li {
-            padding: 12px 12px; background: var(--input-bg); border: 1px solid var(--border);
-            border-radius: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+        .suggestions::-webkit-scrollbar { display: none; }
+        .sug-chip {
+            flex-shrink: 0; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            border: 1px solid var(--border); background: var(--input-bg); color: var(--muted);
+            cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .sug-chip:active { background: var(--accent); color: #fff; border-color: var(--accent); transform: scale(0.95); }
+
+        .section-title {
+            font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+            letter-spacing: 0.05em; margin: 14px 0 8px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .search-box {
+            width: 100%; padding: 10px 14px; border-radius: 12px; border: 2px solid transparent;
+            background: var(--input-bg); font-size: 14px; color: var(--text); margin-bottom: 10px;
+        }
+        .search-box:focus { outline: none; border-color: var(--accent); }
+
+        .preview-list, .ventana-contenido ul { list-style: none; }
+        .preview-list li, .ventana-contenido li {
+            padding: 11px 10px; background: var(--input-bg); border: 1px solid var(--border);
+            border-radius: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
             animation: slideIn 0.25s ease forwards; opacity: 0; transform: translateY(6px);
+            cursor: grab; user-select: none; transition: box-shadow 0.15s, transform 0.15s;
+        }
+        [data-theme="light"] .preview-list li, [data-theme="light"] .ventana-contenido li {
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.7);
+        }
+        .preview-list li.dragging, .ventana-contenido li.dragging {
+            opacity: 0.5; box-shadow: 0 8px 24px rgba(0,0,0,0.15); transform: scale(1.02); cursor: grabbing;
+        }
+        .preview-list li.drag-over, .ventana-contenido li.drag-over {
+            border-top: 2px solid var(--accent);
         }
         @keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
-        .preview-list li.done { opacity: 0.55; }
-        .preview-list li.done .item-text { text-decoration: line-through; color: var(--muted); }
-        .item-qty {
-            font-size: 12px; font-weight: 700; background: rgba(234,88,12,0.12); color: var(--accent);
-            padding: 3px 7px; border-radius: 6px; white-space: nowrap; min-width: 28px; text-align: center;
-        }
-        [data-theme="dark"] .item-qty { background: rgba(234,88,12,0.25); }
-        .item-text { flex: 1; font-size: 14px; word-break: break-word; line-height: 1.3; }
-        .item-cat { font-size: 10px; color: var(--muted); display: block; margin-top: 1px; }
-        .item-actions { display: flex; gap: 5px; flex-shrink: 0; }
-        .btn-sm {
-            width: 34px; height: 34px; border-radius: 8px; border: none; font-size: 14px;
-            cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
-        }
-        .btn-check { background: #dcfce7; color: var(--accent2); border: 1px solid #86efac; }
-        .btn-check:active { background: var(--accent2); color: white; transform: scale(0.9); }
-        .btn-uncheck { background: #ffedd5; color: var(--accent); border: 1px solid #fdba74; }
-        .btn-uncheck:active { background: var(--accent); color: white; transform: scale(0.9); }
-        .btn-edit { background: #e0e7ff; color: #4f46e5; border: 1px solid #a5b4fc; }
-        .btn-edit:active { background: #4f46e5; color: white; transform: scale(0.9); }
-        .btn-delete { background: #fee2e2; color: var(--danger); border: 1px solid #fca5a5; }
-        .btn-delete:active { background: var(--danger); color: white; transform: scale(0.9); }
-        [data-theme="dark"] .btn-check { background: rgba(22,163,74,0.2); border-color: rgba(22,163,74,0.4); }
-        [data-theme="dark"] .btn-uncheck { background: rgba(234,88,12,0.2); border-color: rgba(234,88,12,0.4); }
-        [data-theme="dark"] .btn-edit { background: rgba(79,70,229,0.2); border-color: rgba(79,70,229,0.4); }
-        [data-theme="dark"] .btn-delete { background: rgba(220,38,38,0.2); border-color: rgba(220,38,38,0.4); }
-
-        .empty-state { text-align: center; padding: 24px 10px; color: var(--muted); font-size: 13px; font-style: italic; }
-
-        /* Action buttons row */
-        .botones-fila { display: flex; gap: 10px; margin-top: 4px; }
-        .btn-abrir {
-            flex: 1; padding: 14px 10px; border: none; border-radius: 14px; font-size: 14px; font-weight: 700;
-            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
-            color: white;
-        }
-        .btn-abrir.pendientes { background: linear-gradient(135deg, #fb923c, var(--accent)); box-shadow: 0 4px 12px rgba(234,88,12,0.3); }
-        .btn-abrir.comprados { background: linear-gradient(135deg, #4ade80, var(--accent2)); box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
-        .btn-abrir:active { transform: scale(0.96); }
-
-        .btn-share {
-            width: 100%; margin-top: 12px; padding: 13px; border: none; border-radius: 14px;
-            background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; font-size: 14px; font-weight: 700;
-            cursor: pointer; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .btn-share:active { transform: scale(0.97); }
-
-        /* ========== MODALS ========== */
-        .overlay {
-            position: fixed; inset: 0; background: var(--overlay); z-index: 100;
-            opacity: 0; visibility: hidden; transition: all 0.25s ease; backdrop-filter: blur(4px);
-        }
-        .overlay.activo { opacity: 1; visibility: visible; }
-        .ventana {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -48%) scale(0.92);
-            width: 94%; max-width: 460px; max-height: 82vh;
-            background: var(--card-solid); border-radius: 22px; box-shadow: 0 25px 60px rgba(0,0,0,0.35);
-            z-index: 101; opacity: 0; visibility: hidden; transition: all 0.25s ease;
-            overflow: hidden; display: flex; flex-direction: column;
-        }
-        .ventana.activo { opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
-        .ventana-header {
-            padding: 16px 18px; display: flex; align-items: center; justify-content: space-between;
-            border-bottom: 1px solid var(--border); flex-shrink: 0;
-        }
-        .ventana-titulo { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-        .btn-cerrar {
-            width: 34px; height: 34px; border-radius: 50%; border: none;
-            background: rgba(0,0,0,0.06); font-size: 16px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; color: var(--text);
-        }
-        [data-theme="dark"] .btn-cerrar { background: rgba(255,255,255,0.1); }
-        .ventana-contenido { padding: 14px 16px 18px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
-        .ventana-contenido ul { list-style: none; }
-        .ventana-contenido li {
-            padding: 12px; background: var(--input-bg); border: 1px solid var(--border);
-            border-radius: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
-            animation: slideIn 0.25s ease forwards; opacity: 0;
-        }
-        .ventana-contenido li.done { opacity: 0.6; }
-        .ventana-contenido li.done .item-text { text-decoration: line-through; color: var(--muted); }
+        .preview-list li.done, .ventana-contenido li.done { opacity: 0.55; }
+        .preview-list li.done .item-text, .ventana-contenido li.done .item-text { text-decoration: line-through; color: var(--muted); }
         .ventana-contenido li.removing { animation: slideOut 0.25s ease forwards; }
         @keyframes slideOut { to { opacity: 0; transform: translateX(40px); height: 0; padding: 0; margin: 0; } }
 
-        .btn-clear {
-            width: 100%; padding: 12px; margin-top: 12px;
-            background: rgba(220,38,38,0.08); color: var(--danger); border: 1px solid rgba(220,38,38,0.25);
-            border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        .item-qty {
+            font-size: 11px; font-weight: 700; background: rgba(234,88,12,0.12); color: var(--accent);
+            padding: 3px 6px; border-radius: 6px; white-space: nowrap; min-width: 26px; text-align: center;
         }
-        .btn-clear:active { background: var(--danger); color: white; }
+        [data-theme="dark"] .item-qty { background: rgba(234,88,12,0.22); }
+        .item-text { flex: 1; font-size: 13px; word-break: break-word; line-height: 1.3; }
+        .item-cat { font-size: 9px; color: var(--muted); display: block; margin-top: 1px; }
+        .item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .btn-sm {
+            width: 32px; height: 32px; border-radius: 8px; border: none; font-size: 13px;
+            cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+        }
+        .btn-check { background: #dcfce7; color: var(--accent2); border: 1px solid #86efac; }
+        .btn-check:active { background: var(--accent2); color: #fff; transform: scale(0.9); }
+        .btn-uncheck { background: #ffedd5; color: var(--accent); border: 1px solid #fdba74; }
+        .btn-uncheck:active { background: var(--accent); color: #fff; transform: scale(0.9); }
+        .btn-edit { background: #e0e7ff; color: #4f46e5; border: 1px solid #a5b4fc; }
+        .btn-edit:active { background: #4f46e5; color: #fff; transform: scale(0.9); }
+        .btn-delete { background: #fee2e2; color: var(--danger); border: 1px solid #fca5a5; }
+        .btn-delete:active { background: var(--danger); color: #fff; transform: scale(0.9); }
+        [data-theme="dark"] .btn-check { background: rgba(22,163,74,0.2); border-color: rgba(22,163,74,0.35); }
+        [data-theme="dark"] .btn-uncheck { background: rgba(234,88,12,0.2); border-color: rgba(234,88,12,0.35); }
+        [data-theme="dark"] .btn-edit { background: rgba(79,70,229,0.2); border-color: rgba(79,70,229,0.35); }
+        [data-theme="dark"] .btn-delete { background: rgba(220,38,38,0.2); border-color: rgba(220,38,38,0.35); }
 
-        /* Edit modal form */
-        .form-group { margin-bottom: 12px; }
-        .form-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; display: block; }
-        .form-actions { display: flex; gap: 10px; margin-top: 16px; }
+        .drag-handle { color: var(--muted); font-size: 14px; cursor: grab; padding: 0 2px; opacity: 0.5; }
+        .empty-state { text-align: center; padding: 22px 10px; color: var(--muted); font-size: 13px; font-style: italic; }
+
+        .botones-fila { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+        .btn-abrir {
+            flex: 1; min-width: 100px; padding: 13px 8px; border: none; border-radius: 14px;
+            font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 5px; color: #fff;
+        }
+        .btn-abrir.pendientes { background: linear-gradient(135deg, #fb923c, var(--accent)); box-shadow: 0 4px 12px rgba(234,88,12,0.3); }
+        .btn-abrir.comprados { background: linear-gradient(135deg, #4ade80, var(--accent2)); box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
+        .btn-abrir.modo { background: linear-gradient(135deg, #818cf8, #6366f1); box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+        .btn-abrir:active { transform: scale(0.96); }
+
+        .btn-share {
+            width: 100%; margin-top: 10px; padding: 12px; border: none; border-radius: 14px;
+            background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-size: 13px; font-weight: 700;
+            cursor: pointer; box-shadow: 0 4px 12px rgba(99,102,241,0.3); display: flex; align-items: center; justify-content: center; gap: 7px;
+        }
+        .btn-share:active { transform: scale(0.97); }
+
+        /* ===== MODALS with DIFFERENT BACKGROUNDS ===== */
+        .overlay {
+            position: fixed; inset: 0; background: var(--overlay); z-index: 100;
+            opacity: 0; visibility: hidden; transition: all 0.25s; backdrop-filter: blur(6px);
+        }
+        .overlay.activo { opacity: 1; visibility: visible; }
+
+        .ventana {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -48%) scale(0.92);
+            width: 94%; max-width: 460px; max-height: 84vh;
+            border-radius: 22px; box-shadow: 0 25px 60px rgba(0,0,0,0.35);
+            z-index: 101; opacity: 0; visibility: hidden; transition: all 0.25s;
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+        .ventana.activo { opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
+
+        /* Pendientes - warm orange gradient */
+        #ventanaPendientes {
+            background: linear-gradient(165deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%);
+        }
+        [data-theme="dark"] #ventanaPendientes {
+            background: linear-gradient(165deg, #1c1410 0%, #1a120e 50%, #0f0a08 100%);
+        }
+
+        /* Comprados - green gradient */
+        #ventanaComprados {
+            background: linear-gradient(165deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%);
+        }
+        [data-theme="dark"] #ventanaComprados {
+            background: linear-gradient(165deg, #0a1a10 0%, #0c1a12 50%, #06100a 100%);
+        }
+
+        /* Editar - indigo/purple */
+        #ventanaEditar {
+            background: linear-gradient(165deg, #eef2ff 0%, #e0e7ff 50%, #c7d2fe 100%);
+        }
+        [data-theme="dark"] #ventanaEditar {
+            background: linear-gradient(165deg, #0f0a1a 0%, #12101f 50%, #0a0814 100%);
+        }
+
+        /* Ajustes - slate/blue */
+        #ventanaAjustes {
+            background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+        }
+        [data-theme="dark"] #ventanaAjustes {
+            background: linear-gradient(165deg, #0a0f1a 0%, #0f1520 50%, #080c14 100%);
+        }
+
+        /* Modo Compra - full immersive */
+        #ventanaModoCompra {
+            background: linear-gradient(165deg, #faf5ff 0%, #f3e8ff 40%, #ede9fe 100%);
+            max-height: 92vh; width: 96%; max-width: 500px;
+        }
+        [data-theme="dark"] #ventanaModoCompra {
+            background: linear-gradient(165deg, #0f0a1a 0%, #150f22 40%, #0a0814 100%);
+        }
+
+        .ventana-header {
+            padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+            background: rgba(255,255,255,0.35); backdrop-filter: blur(8px);
+        }
+        [data-theme="dark"] .ventana-header { background: rgba(0,0,0,0.25); }
+        .ventana-titulo { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .btn-cerrar {
+            width: 32px; height: 32px; border-radius: 50%; border: none;
+            background: rgba(0,0,0,0.06); font-size: 15px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; color: var(--text);
+        }
+        [data-theme="dark"] .btn-cerrar { background: rgba(255,255,255,0.1); }
+        .ventana-contenido { padding: 12px 14px 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+
+        .btn-clear {
+            width: 100%; padding: 11px; margin-top: 10px;
+            background: rgba(220,38,38,0.08); color: var(--danger); border: 1px solid rgba(220,38,38,0.2);
+            border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .btn-clear:active { background: var(--danger); color: #fff; }
+
+        .form-group { margin-bottom: 10px; }
+        .form-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 3px; display: block; }
+        .form-actions { display: flex; gap: 8px; margin-top: 14px; }
         .btn-save {
-            flex: 1; padding: 13px; border: none; border-radius: 12px;
+            flex: 1; padding: 12px; border: none; border-radius: 12px;
             background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-            color: white; font-weight: 700; font-size: 15px; cursor: pointer;
+            color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
         }
         .btn-cancel {
-            flex: 1; padding: 13px; border: 1px solid var(--border); border-radius: 12px;
-            background: transparent; color: var(--text); font-weight: 600; font-size: 15px; cursor: pointer;
+            flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 12px;
+            background: transparent; color: var(--text); font-weight: 600; font-size: 14px; cursor: pointer;
         }
 
-        /* Settings panel */
         .settings-row {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 0; border-bottom: 1px solid var(--border);
+            padding: 12px 0; border-bottom: 1px solid var(--border);
         }
-        .settings-row:last-child { border-bottom: none; }
-        .settings-label { font-size: 15px; font-weight: 600; }
-        .settings-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .settings-label { font-size: 14px; font-weight: 600; }
+        .settings-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
         .toggle {
-            width: 48px; height: 28px; border-radius: 14px; background: #cbd5e1;
+            width: 46px; height: 26px; border-radius: 13px; background: #cbd5e1;
             position: relative; cursor: pointer; transition: background 0.2s; border: none;
         }
         .toggle.on { background: var(--accent2); }
         .toggle::after {
-            content: ''; position: absolute; top: 3px; left: 3px;
-            width: 22px; height: 22px; border-radius: 50%; background: white;
+            content: ''; position: absolute; top: 2px; left: 2px;
+            width: 22px; height: 22px; border-radius: 50%; background: #fff;
             transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
         .toggle.on::after { transform: translateX(20px); }
 
-        /* Category filter chips */
-        .cat-chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .cat-chips { display: flex; gap: 5px; overflow-x: auto; padding: 3px 0 6px; scrollbar-width: none; }
         .cat-chips::-webkit-scrollbar { display: none; }
         .chip {
-            flex-shrink: 0; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            flex-shrink: 0; padding: 5px 11px; border-radius: 18px; font-size: 11px; font-weight: 600;
             border: 1px solid var(--border); background: var(--input-bg); color: var(--muted); cursor: pointer;
-            transition: all 0.15s;
         }
-        .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-        /* Sort bar */
-        .sort-bar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+        .sort-bar { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
         .sort-btn {
-            padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 600;
+            padding: 4px 9px; border-radius: 8px; font-size: 10px; font-weight: 600;
             border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer;
         }
         .sort-btn.active { background: rgba(234,88,12,0.12); color: var(--accent); border-color: var(--accent); }
 
-        /* Toast */
         .toast {
-            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
-            background: var(--card-solid); color: var(--text); padding: 12px 20px; border-radius: 12px;
-            font-size: 14px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
-            z-index: 200; opacity: 0; transition: all 0.3s ease; white-space: nowrap;
+            position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(80px);
+            background: var(--card-solid); color: var(--text); padding: 11px 18px; border-radius: 12px;
+            font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+            z-index: 200; opacity: 0; transition: all 0.3s; white-space: nowrap;
             border: 1px solid var(--border);
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-        /* List selector */
-        .list-selector {
-            display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px;
-            scrollbar-width: none;
-        }
+        .list-selector { display: flex; gap: 5px; overflow-x: auto; margin-bottom: 10px; scrollbar-width: none; }
         .list-selector::-webkit-scrollbar { display: none; }
         .list-chip {
-            flex-shrink: 0; padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+            flex-shrink: 0; padding: 6px 12px; border-radius: 18px; font-size: 12px; font-weight: 600;
             border: 1.5px solid var(--border); background: var(--input-bg); color: var(--muted); cursor: pointer;
         }
-        .list-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .list-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
         .list-chip.add { border-style: dashed; }
+
+        /* Modo Compra big items */
+        .modo-item {
+            padding: 18px 16px; background: var(--input-bg); border: 1px solid var(--border);
+            border-radius: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 14px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .modo-item:active { transform: scale(0.97); }
+        .modo-item.done { opacity: 0.4; }
+        .modo-check {
+            width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--accent2);
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+            flex-shrink: 0; transition: all 0.2s;
+        }
+        .modo-item.done .modo-check { background: var(--accent2); color: #fff; }
+        .modo-text { flex: 1; font-size: 16px; font-weight: 600; }
+        .modo-qty { font-size: 14px; font-weight: 700; color: var(--accent); }
+        .modo-progress {
+            height: 6px; background: rgba(0,0,0,0.08); border-radius: 3px; margin: 12px 0;
+            overflow: hidden;
+        }
+        .modo-progress-bar {
+            height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 3px; transition: width 0.3s ease;
+        }
+        .modo-stats { text-align: center; font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
     </style>
 </head>
 <body>
 
-    <!-- LOADING -->
-    <div class="pantalla-carga" id="pantallaCarga">
-        <div class="carga-icono">🛒</div>
-        <div class="carga-texto">Mis Compras</div>
-        <div class="carga-barra"><div class="carga-progreso"></div></div>
+<div class="pantalla-carga" id="pantallaCarga">
+    <div class="carga-icono">🛒</div>
+    <div class="carga-texto">Mis Compras</div>
+    <div class="carga-barra"><div class="carga-progreso"></div></div>
+</div>
+
+<div class="overlay" id="overlay" onclick="cerrarTodas()"></div>
+
+<!-- PENDIENTES -->
+<div class="ventana" id="ventanaPendientes">
+    <div class="ventana-header">
+        <div class="ventana-titulo" style="color:var(--accent)">📋 Pendientes <span id="cntPend">(0)</span></div>
+        <button class="btn-cerrar" onclick="cerrarVentana('Pendientes')" aria-label="Cerrar">✕</button>
     </div>
-
-    <!-- OVERLAY -->
-    <div class="overlay" id="overlay" onclick="cerrarTodas()"></div>
-
-    <!-- VENTANA PENDIENTES -->
-    <div class="ventana" id="ventanaPendientes">
-        <div class="ventana-header">
-            <div class="ventana-titulo" style="color:var(--accent)">📋 Pendientes <span id="cntPend">(0)</span></div>
-            <button class="btn-cerrar" onclick="cerrarVentana('Pendientes')" aria-label="Cerrar">✕</button>
+    <div class="ventana-contenido">
+        <input type="search" class="search-box" id="searchPend" placeholder="🔍 Buscar producto..." oninput="renderizar()">
+        <div class="sort-bar">
+            <button class="sort-btn active" data-sort="recent" onclick="setSort('recent',this)">Recientes</button>
+            <button class="sort-btn" data-sort="alpha" onclick="setSort('alpha',this)">A-Z</button>
+            <button class="sort-btn" data-sort="cat" onclick="setSort('cat',this)">Categoría</button>
         </div>
-        <div class="ventana-contenido">
-            <div class="sort-bar">
-                <button class="sort-btn active" data-sort="recent" onclick="setSort('recent',this)">Recientes</button>
-                <button class="sort-btn" data-sort="alpha" onclick="setSort('alpha',this)">A-Z</button>
-                <button class="sort-btn" data-sort="cat" onclick="setSort('cat',this)">Categoría</button>
+        <div class="cat-chips" id="chipsPendientes"></div>
+        <ul id="listaPendientes"></ul>
+    </div>
+</div>
+
+<!-- COMPRADOS -->
+<div class="ventana" id="ventanaComprados">
+    <div class="ventana-header">
+        <div class="ventana-titulo" style="color:var(--accent2)">✓ Comprados <span id="cntComp">(0)</span></div>
+        <button class="btn-cerrar" onclick="cerrarVentana('Comprados')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="ventana-contenido">
+        <ul id="listaComprados"></ul>
+        <button class="btn-clear" onclick="limpiarComprados()">🗑️ Limpiar todos los comprados</button>
+    </div>
+</div>
+
+<!-- EDITAR -->
+<div class="ventana" id="ventanaEditar">
+    <div class="ventana-header">
+        <div class="ventana-titulo">✏️ Editar producto</div>
+        <button class="btn-cerrar" onclick="cerrarVentana('Editar')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="ventana-contenido">
+        <div class="form-group">
+            <label class="form-label">Producto</label>
+            <input type="text" id="editTexto" class="input-field" style="width:100%">
+        </div>
+        <div class="input-row">
+            <div class="form-group" style="flex:1;margin:0">
+                <label class="form-label">Cantidad</label>
+                <input type="number" id="editCantidad" class="input-field qty-field" min="0.1" step="0.1" style="width:100%">
             </div>
-            <div class="cat-chips" id="chipsPendientes"></div>
-            <ul id="listaPendientes"></ul>
-        </div>
-    </div>
-
-    <!-- VENTANA COMPRADOS -->
-    <div class="ventana" id="ventanaComprados">
-        <div class="ventana-header">
-            <div class="ventana-titulo" style="color:var(--accent2)">✓ Comprados <span id="cntComp">(0)</span></div>
-            <button class="btn-cerrar" onclick="cerrarVentana('Comprados')" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="ventana-contenido">
-            <ul id="listaComprados"></ul>
-            <button class="btn-clear" onclick="limpiarComprados()">🗑️ Limpiar todos los comprados</button>
-        </div>
-    </div>
-
-    <!-- VENTANA EDITAR -->
-    <div class="ventana" id="ventanaEditar">
-        <div class="ventana-header">
-            <div class="ventana-titulo">✏️ Editar producto</div>
-            <button class="btn-cerrar" onclick="cerrarVentana('Editar')" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="ventana-contenido">
-            <div class="form-group">
-                <label class="form-label">Producto</label>
-                <input type="text" id="editTexto" class="input-field" style="width:100%">
+            <div class="form-group" style="flex:1;margin:0">
+                <label class="form-label">Unidad</label>
+                <input type="text" id="editUnidad" class="input-field unit-field" placeholder="kg, u..." style="width:100%" list="unidadesList">
             </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Categoría</label>
+            <select id="editCategoria" class="cat-select"></select>
+        </div>
+        <div class="form-actions">
+            <button class="btn-cancel" onclick="cerrarVentana('Editar')">Cancelar</button>
+            <button class="btn-save" onclick="guardarEdicion()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- AJUSTES -->
+<div class="ventana" id="ventanaAjustes">
+    <div class="ventana-header">
+        <div class="ventana-titulo">⚙️ Ajustes</div>
+        <button class="btn-cerrar" onclick="cerrarVentana('Ajustes')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="ventana-contenido">
+        <div class="settings-row">
+            <div><div class="settings-label">🌙 Modo oscuro</div><div class="settings-desc">Tema oscuro opaco</div></div>
+            <button class="toggle" id="toggleDark" onclick="toggleDark()" aria-label="Modo oscuro"></button>
+        </div>
+        <div class="settings-row">
+            <div><div class="settings-label">🔊 Sonidos</div><div class="settings-desc">Efectos al interactuar</div></div>
+            <button class="toggle on" id="toggleSound" onclick="toggleSound()" aria-label="Sonidos"></button>
+        </div>
+        <div class="settings-row">
+            <div><div class="settings-label">📳 Vibración</div><div class="settings-desc">Feedback háptico</div></div>
+            <button class="toggle on" id="toggleHaptic" onclick="toggleHaptic()" aria-label="Vibración"></button>
+        </div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px">
+            <div><div class="settings-label">📋 Gestionar listas</div><div class="settings-desc">Crear o eliminar</div></div>
+            <div id="listasManager"></div>
             <div class="input-row">
-                <div class="form-group" style="flex:1;margin:0">
-                    <label class="form-label">Cantidad</label>
-                    <input type="number" id="editCantidad" class="input-field qty-field" min="0.1" step="0.1" style="width:100%">
-                </div>
-                <div class="form-group" style="flex:1;margin:0">
-                    <label class="form-label">Unidad</label>
-                    <input type="text" id="editUnidad" class="input-field unit-field" placeholder="kg, u..." style="width:100%" list="unidadesList">
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Categoría</label>
-                <select id="editCategoria" class="cat-select"></select>
-            </div>
-            <div class="form-actions">
-                <button class="btn-cancel" onclick="cerrarVentana('Editar')">Cancelar</button>
-                <button class="btn-save" onclick="guardarEdicion()">Guardar</button>
+                <input type="text" id="nuevaListaNombre" class="input-field" placeholder="Nueva lista..." style="font-size:13px">
+                <button class="btn-add" onclick="crearLista()" style="font-size:16px">+</button>
             </div>
         </div>
+        <button class="btn-clear" style="margin-top:12px" onclick="exportarDatos()">📤 Exportar datos</button>
+        <button class="btn-clear" onclick="importarDatos()">📥 Importar datos</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+    </div>
+</div>
+
+<!-- MODO COMPRA -->
+<div class="ventana" id="ventanaModoCompra">
+    <div class="ventana-header">
+        <div class="ventana-titulo" style="color:#7c3aed">🛒 Modo Compra</div>
+        <button class="btn-cerrar" onclick="cerrarVentana('ModoCompra')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="ventana-contenido">
+        <div class="modo-stats" id="modoStats">0 de 0 comprados</div>
+        <div class="modo-progress"><div class="modo-progress-bar" id="modoBar" style="width:0%"></div></div>
+        <div id="modoLista"></div>
+    </div>
+</div>
+
+<!-- MAIN -->
+<div class="max-w-lg" id="contenidoPrincipal" style="opacity:0;transition:opacity 0.5s ease 0.3s">
+    <div class="glass-card">
+        <div class="header-row">
+            <h1 class="gradient-text">Mis Compras 🛒</h1>
+            <button class="icon-btn" onclick="abrirVentana('Ajustes')" aria-label="Ajustes">⚙️</button>
+        </div>
+        <p class="subtitle">Tu lista inteligente de compras</p>
+
+        <div class="list-selector" id="listSelector"></div>
+
+        <div class="flex gap-2">
+            <div class="stat-pill"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total</div></div>
+            <div class="stat-pill"><div class="stat-num" id="statDone">0</div><div class="stat-label">Comprado</div></div>
+            <div class="stat-pill"><div class="stat-num" id="statPending">0</div><div class="stat-label">Pendiente</div></div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-row">
+                <input type="number" id="nuevoCantidad" class="input-field qty-field" value="1" min="0.1" step="0.1" aria-label="Cantidad">
+                <input type="text" id="nuevoUnidad" class="input-field unit-field" placeholder="u" list="unidadesList" aria-label="Unidad">
+                <input type="text" id="nuevoItem" class="input-field" placeholder="Producto..." autocomplete="off" aria-label="Producto" oninput="mostrarSugerencias()">
+                <button onclick="agregar()" class="btn-add" aria-label="Agregar">+</button>
+            </div>
+            <select id="nuevaCategoria" class="cat-select" aria-label="Categoría"></select>
+            <div class="suggestions" id="suggestions"></div>
+        </div>
+
+        <datalist id="unidadesList">
+            <option value="u"><option value="kg"><option value="g"><option value="L">
+            <option value="ml"><option value="pack"><option value="docena"><option value="caja">
+        </datalist>
+
+        <div class="section-title">
+            <span>Pendientes recientes</span>
+            <span id="previewCount" style="font-weight:500"></span>
+        </div>
+        <ul class="preview-list" id="previewList"></ul>
     </div>
 
-    <!-- VENTANA AJUSTES -->
-    <div class="ventana" id="ventanaAjustes">
-        <div class="ventana-header">
-            <div class="ventana-titulo">⚙️ Ajustes</div>
-            <button class="btn-cerrar" onclick="cerrarVentana('Ajustes')" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="ventana-contenido">
-            <div class="settings-row">
-                <div>
-                    <div class="settings-label">🌙 Modo oscuro</div>
-                    <div class="settings-desc">Tema oscuro para la app</div>
-                </div>
-                <button class="toggle" id="toggleDark" onclick="toggleDark()" aria-label="Modo oscuro"></button>
-            </div>
-            <div class="settings-row">
-                <div>
-                    <div class="settings-label">🔊 Sonidos</div>
-                    <div class="settings-desc">Efectos de sonido al interactuar</div>
-                </div>
-                <button class="toggle on" id="toggleSound" onclick="toggleSound()" aria-label="Sonidos"></button>
-            </div>
-            <div class="settings-row">
-                <div>
-                    <div class="settings-label">📳 Vibración</div>
-                    <div class="settings-desc">Feedback háptico (Android)</div>
-                </div>
-                <button class="toggle on" id="toggleHaptic" onclick="toggleHaptic()" aria-label="Vibración"></button>
-            </div>
-            <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px">
-                <div>
-                    <div class="settings-label">📋 Gestionar listas</div>
-                    <div class="settings-desc">Crear o eliminar listas de compras</div>
-                </div>
-                <div id="listasManager"></div>
-                <div class="input-row">
-                    <input type="text" id="nuevaListaNombre" class="input-field" placeholder="Nombre de nueva lista..." style="font-size:14px">
-                    <button class="btn-add" onclick="crearLista()" style="font-size:18px">+</button>
-                </div>
-            </div>
-            <button class="btn-clear" style="margin-top:16px" onclick="exportarDatos()">📤 Exportar datos (JSON)</button>
-            <button class="btn-clear" onclick="importarDatos()">📥 Importar datos</button>
-            <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
-        </div>
+    <div class="botones-fila">
+        <button class="btn-abrir pendientes" onclick="abrirVentana('Pendientes')">📋 Todos</button>
+        <button class="btn-abrir comprados" onclick="abrirVentana('Comprados')">✓ Hechos</button>
+        <button class="btn-abrir modo" onclick="abrirModoCompra()">🛒 Comprar</button>
     </div>
+    <button class="btn-share" onclick="compartirLista()">📤 Compartir lista</button>
+</div>
 
-    <!-- MAIN CONTENT -->
-    <div class="max-w-lg" id="contenidoPrincipal" style="opacity:0;transition:opacity 0.5s ease 0.3s">
-
-        <div class="glass-card">
-            <div class="header-row">
-                <h1 class="gradient-text">Mis Compras 🛒</h1>
-                <button class="icon-btn" onclick="abrirVentana('Ajustes')" aria-label="Ajustes">⚙️</button>
-            </div>
-            <p class="subtitle">Organiza todo lo que necesitas de forma inteligente</p>
-
-            <!-- List selector -->
-            <div class="list-selector" id="listSelector"></div>
-
-            <!-- Stats -->
-            <div class="flex gap-2">
-                <div class="stat-pill">
-                    <div class="stat-num" id="statTotal">0</div>
-                    <div class="stat-label">Total</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-num" id="statDone">0</div>
-                    <div class="stat-label">Comprado</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-num" id="statPending">0</div>
-                    <div class="stat-label">Pendiente</div>
-                </div>
-            </div>
-
-            <!-- Add form -->
-            <div class="input-area">
-                <div class="input-row">
-                    <input type="number" id="nuevoCantidad" class="input-field qty-field" value="1" min="0.1" step="0.1" aria-label="Cantidad">
-                    <input type="text" id="nuevoUnidad" class="input-field unit-field" placeholder="u" list="unidadesList" aria-label="Unidad">
-                    <input type="text" id="nuevoItem" class="input-field" placeholder="Producto..." autocomplete="off" aria-label="Producto">
-                    <button onclick="agregar()" class="btn-add" aria-label="Agregar">+</button>
-                </div>
-                <select id="nuevaCategoria" class="cat-select" aria-label="Categoría"></select>
-            </div>
-
-            <datalist id="unidadesList">
-                <option value="u"><option value="kg"><option value="g"><option value="L">
-                <option value="ml"><option value="pack"><option value="docena"><option value="caja">
-            </datalist>
-
-            <!-- Preview pendientes -->
-            <div class="section-title">
-                <span>Pendientes recientes</span>
-                <span id="previewCount" style="font-weight:500"></span>
-            </div>
-            <ul class="preview-list" id="previewList"></ul>
-        </div>
-
-        <div class="botones-fila">
-            <button class="btn-abrir pendientes" onclick="abrirVentana('Pendientes')">📋 Ver todos</button>
-            <button class="btn-abrir comprados" onclick="abrirVentana('Comprados')">✓ Comprados</button>
-        </div>
-
-        <button class="btn-share" onclick="compartirLista()">📤 Compartir lista</button>
-    </div>
-
-    <div class="toast" id="toast"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-/* ========== CONFIG & STATE ========== */
 const CATEGORIAS = [
-    "Sin categoría", "Frutas y Verduras", "Lácteos", "Carnes y Pescados",
-    "Panadería", "Bebidas", "Limpieza", "Higiene", "Congelados", "Snacks", "Otros"
+    "Sin categoría","Frutas y Verduras","Lácteos","Carnes y Pescados",
+    "Panadería","Bebidas","Limpieza","Higiene","Congelados","Snacks","Otros"
 ];
 
 let state = {
-    listas: { "principal": { nombre: "Principal", items: [] } },
+    listas: { principal: { nombre: "Principal", items: [] } },
     listaActiva: "principal",
+    historial: {},
     sort: "recent",
     filterCat: "todas",
-    sound: true,
-    haptic: true,
-    dark: false
+    sound: true, haptic: true, dark: false
 };
-
 let editId = null;
+let dragSrcId = null;
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-const VOLUMEN = 0.45;
+const VOLUMEN = 0.4;
 
-/* ========== INIT ========== */
 window.addEventListener('load', () => {
     cargarEstado();
     aplicarTema();
@@ -555,225 +618,180 @@ window.addEventListener('load', () => {
     setTimeout(() => {
         document.getElementById('pantallaCarga').classList.add('oculta');
         document.getElementById('contenidoPrincipal').style.opacity = '1';
-        if (state.sound) reproducirSonido('bienvenida');
-    }, 1600);
+        if (state.sound) sonido('bienvenida');
+    }, 1500);
 });
 
 function cargarEstado() {
     try {
-        const raw = localStorage.getItem('misComprasV2');
-        if (raw) {
-            const saved = JSON.parse(raw);
-            state = { ...state, ...saved };
-            if (!state.listas) {
+        const raw = localStorage.getItem('misComprasV3');
+        if (raw) { state = { ...state, ...JSON.parse(raw) }; }
+        else {
+            const v2 = localStorage.getItem('misComprasV2');
+            if (v2) {
+                const s = JSON.parse(v2);
+                state = { ...state, ...s };
+            } else {
                 const old = JSON.parse(localStorage.getItem('listaCompras') || '[]');
-                state.listas = { principal: { nombre: "Principal", items: old.map(i => ({
-                    id: i.id || genId(), texto: i.texto, cantidad: 1, unidad: "u",
-                    categoria: "Sin categoría", hecho: !!i.hecho, createdAt: i.id || Date.now()
-                })) } };
-                state.listaActiva = "principal";
+                if (old.length) {
+                    state.listas.principal.items = old.map(i => ({
+                        id: i.id || genId(), texto: i.texto, cantidad: 1, unidad: 'u',
+                        categoria: 'Sin categoría', hecho: !!i.hecho, createdAt: Date.now()
+                    }));
+                }
             }
         }
-    } catch(e) { console.warn('Error cargando estado', e); }
+        if (!state.historial) state.historial = {};
+    } catch(e) {}
 }
 
 function guardarEstado() {
-    localStorage.setItem('misComprasV2', JSON.stringify({
-        listas: state.listas,
-        listaActiva: state.listaActiva,
-        sort: state.sort,
-        sound: state.sound,
-        haptic: state.haptic,
-        dark: state.dark
+    localStorage.setItem('misComprasV3', JSON.stringify({
+        listas: state.listas, listaActiva: state.listaActiva, historial: state.historial,
+        sort: state.sort, sound: state.sound, haptic: state.haptic, dark: state.dark
     }));
 }
 
-function items() {
-    return state.listas[state.listaActiva]?.items || [];
-}
+function items() { return state.listas[state.listaActiva]?.items || []; }
+function setItems(arr) { if (state.listas[state.listaActiva]) state.listas[state.listaActiva].items = arr; }
+function genId() { return (crypto.randomUUID && crypto.randomUUID()) || Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
-function setItems(arr) {
-    if (!state.listas[state.listaActiva]) return;
-    state.listas[state.listaActiva].items = arr;
-}
-
-function genId() {
-    return (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2, 9));
-}
-
-/* ========== THEME / SETTINGS ========== */
 function aplicarTema() {
     document.documentElement.setAttribute('data-theme', state.dark ? 'dark' : 'light');
     document.getElementById('toggleDark').classList.toggle('on', state.dark);
     document.getElementById('toggleSound').classList.toggle('on', state.sound);
     document.getElementById('toggleHaptic').classList.toggle('on', state.haptic);
-    document.querySelector('meta[name="theme-color"]').content = state.dark ? '#0f172a' : '#ea580c';
+    document.querySelector('meta[name="theme-color"]').content = state.dark ? '#0b1120' : '#ea580c';
 }
+function toggleDark() { state.dark = !state.dark; aplicarTema(); guardarEstado(); haptic(); }
+function toggleSound() { state.sound = !state.sound; document.getElementById('toggleSound').classList.toggle('on', state.sound); guardarEstado(); if (state.sound) sonido('check'); }
+function toggleHaptic() { state.haptic = !state.haptic; document.getElementById('toggleHaptic').classList.toggle('on', state.haptic); guardarEstado(); haptic(); }
+function haptic(ms=12) { if (state.haptic && navigator.vibrate) navigator.vibrate(ms); }
 
-function toggleDark() {
-    state.dark = !state.dark;
-    aplicarTema();
-    guardarEstado();
-    haptic();
-}
-
-function toggleSound() {
-    state.sound = !state.sound;
-    document.getElementById('toggleSound').classList.toggle('on', state.sound);
-    guardarEstado();
-    if (state.sound) reproducirSonido('check');
-}
-
-function toggleHaptic() {
-    state.haptic = !state.haptic;
-    document.getElementById('toggleHaptic').classList.toggle('on', state.haptic);
-    guardarEstado();
-    haptic();
-}
-
-function haptic(ms = 12) {
-    if (state.haptic && navigator.vibrate) navigator.vibrate(ms);
-}
-
-/* ========== SOUND ========== */
-function reproducirSonido(tipo) {
+function sonido(tipo) {
     if (!state.sound) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    const t = audioCtx.currentTime;
-    const v = VOLUMEN;
-
-    const configs = {
-        agregar: () => { osc.type='sine'; osc.frequency.setValueAtTime(440,t); osc.frequency.exponentialRampToValueAtTime(880,t+0.12); gain.gain.setValueAtTime(v,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.15); osc.start(t); osc.stop(t+0.15); },
-        check: () => { osc.type='sine'; osc.frequency.setValueAtTime(660,t); osc.frequency.setValueAtTime(880,t+0.07); gain.gain.setValueAtTime(v,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.12); osc.start(t); osc.stop(t+0.12); },
-        uncheck: () => { osc.type='sine'; osc.frequency.setValueAtTime(440,t); osc.frequency.setValueAtTime(330,t+0.07); gain.gain.setValueAtTime(v*0.7,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.12); osc.start(t); osc.stop(t+0.12); },
-        eliminar: () => { osc.type='triangle'; osc.frequency.setValueAtTime(400,t); osc.frequency.exponentialRampToValueAtTime(100,t+0.2); gain.gain.setValueAtTime(v*0.8,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.22); osc.start(t); osc.stop(t+0.22); },
-        clear: () => { osc.type='sawtooth'; osc.frequency.setValueAtTime(300,t); osc.frequency.setValueAtTime(150,t+0.15); osc.frequency.setValueAtTime(60,t+0.3); gain.gain.setValueAtTime(v,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.35); osc.start(t); osc.stop(t+0.35); },
-        abrir: () => { osc.type='sine'; osc.frequency.setValueAtTime(440,t); osc.frequency.setValueAtTime(554,t+0.08); gain.gain.setValueAtTime(v*0.6,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.12); osc.start(t); osc.stop(t+0.12); },
-        cerrar: () => { osc.type='sine'; osc.frequency.setValueAtTime(554,t); osc.frequency.setValueAtTime(392,t+0.08); gain.gain.setValueAtTime(v*0.5,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.12); osc.start(t); osc.stop(t+0.12); },
-        bienvenida: () => { osc.type='sine'; osc.frequency.setValueAtTime(330,t); osc.frequency.setValueAtTime(440,t+0.12); osc.frequency.setValueAtTime(554,t+0.24); osc.frequency.setValueAtTime(660,t+0.36); gain.gain.setValueAtTime(v*0.6,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.42); osc.start(t); osc.stop(t+0.42); },
-        share: () => { osc.type='sine'; osc.frequency.setValueAtTime(523,t); osc.frequency.setValueAtTime(659,t+0.08); osc.frequency.setValueAtTime(784,t+0.16); gain.gain.setValueAtTime(v*0.7,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.2); osc.start(t); osc.stop(t+0.2); }
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    const t = audioCtx.currentTime, v = VOLUMEN;
+    const map = {
+        agregar: () => { o.type='sine'; o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(880,t+0.1); g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.13); o.start(t); o.stop(t+0.13); },
+        check: () => { o.type='sine'; o.frequency.setValueAtTime(660,t); o.frequency.setValueAtTime(880,t+0.06); g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1); o.start(t); o.stop(t+0.1); },
+        uncheck: () => { o.type='sine'; o.frequency.setValueAtTime(440,t); o.frequency.setValueAtTime(330,t+0.06); g.gain.setValueAtTime(v*0.6,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1); o.start(t); o.stop(t+0.1); },
+        eliminar: () => { o.type='triangle'; o.frequency.setValueAtTime(380,t); o.frequency.exponentialRampToValueAtTime(90,t+0.18); g.gain.setValueAtTime(v*0.7,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2); o.start(t); o.stop(t+0.2); },
+        clear: () => { o.type='sawtooth'; o.frequency.setValueAtTime(280,t); o.frequency.setValueAtTime(120,t+0.12); o.frequency.setValueAtTime(50,t+0.25); g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.start(t); o.stop(t+0.3); },
+        abrir: () => { o.type='sine'; o.frequency.setValueAtTime(440,t); o.frequency.setValueAtTime(554,t+0.07); g.gain.setValueAtTime(v*0.5,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1); o.start(t); o.stop(t+0.1); },
+        cerrar: () => { o.type='sine'; o.frequency.setValueAtTime(554,t); o.frequency.setValueAtTime(392,t+0.07); g.gain.setValueAtTime(v*0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1); o.start(t); o.stop(t+0.1); },
+        bienvenida: () => { o.type='sine'; o.frequency.setValueAtTime(330,t); o.frequency.setValueAtTime(440,t+0.1); o.frequency.setValueAtTime(554,t+0.2); o.frequency.setValueAtTime(660,t+0.3); g.gain.setValueAtTime(v*0.5,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.36); o.start(t); o.stop(t+0.36); },
+        share: () => { o.type='sine'; o.frequency.setValueAtTime(523,t); o.frequency.setValueAtTime(659,t+0.07); o.frequency.setValueAtTime(784,t+0.14); g.gain.setValueAtTime(v*0.6,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18); o.start(t); o.stop(t+0.18); }
     };
-    (configs[tipo] || configs.check)();
+    (map[tipo] || map.check)();
 }
 
-/* ========== TOAST ========== */
 let toastTimer;
 function toast(msg) {
     const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-/* ========== SELECTS ========== */
 function poblarSelects() {
     const opts = CATEGORIAS.map(c => `<option value="${c}">${c}</option>`).join('');
     document.getElementById('nuevaCategoria').innerHTML = opts;
     document.getElementById('editCategoria').innerHTML = opts;
 }
 
-/* ========== LISTAS ========== */
+/* LISTAS */
 function renderListSelector() {
-    const el = document.getElementById('listSelector');
-    el.innerHTML = Object.entries(state.listas).map(([id, l]) =>
-        `<button class="list-chip ${id === state.listaActiva ? 'active' : ''}" onclick="cambiarLista('${id}')">${esc(l.nombre)}</button>`
-    ).join('') + `<button class="list-chip add" onclick="abrirVentana('Ajustes')">+ Lista</button>`;
+    document.getElementById('listSelector').innerHTML =
+        Object.entries(state.listas).map(([id,l]) =>
+            `<button class="list-chip ${id===state.listaActiva?'active':''}" onclick="cambiarLista('${id}')">${esc(l.nombre)}</button>`
+        ).join('') + `<button class="list-chip add" onclick="abrirVentana('Ajustes')">+ Lista</button>`;
 }
-
 function cambiarLista(id) {
     if (!state.listas[id]) return;
-    state.listaActiva = id;
-    guardarEstado();
-    renderListSelector();
-    renderizar();
-    haptic();
-    reproducirSonido('abrir');
+    state.listaActiva = id; guardarEstado(); renderListSelector(); renderizar(); haptic(); sonido('abrir');
 }
-
 function crearLista() {
-    const nombre = document.getElementById('nuevaListaNombre').value.trim();
-    if (!nombre) return toast('Escribe un nombre');
+    const n = document.getElementById('nuevaListaNombre').value.trim();
+    if (!n) return toast('Escribe un nombre');
     const id = genId();
-    state.listas[id] = { nombre, items: [] };
+    state.listas[id] = { nombre: n, items: [] };
     state.listaActiva = id;
     document.getElementById('nuevaListaNombre').value = '';
-    guardarEstado();
-    renderListSelector();
-    renderListasManager();
-    renderizar();
-    toast('Lista creada');
-    reproducirSonido('agregar');
+    guardarEstado(); renderListSelector(); renderListasManager(); renderizar();
+    toast('Lista creada'); sonido('agregar');
 }
-
 function eliminarLista(id) {
-    if (Object.keys(state.listas).length <= 1) return toast('Debes tener al menos una lista');
-    if (!confirm('¿Eliminar esta lista y todos sus productos?')) return;
+    if (Object.keys(state.listas).length <= 1) return toast('Debes tener al menos una');
+    if (!confirm('¿Eliminar esta lista?')) return;
     delete state.listas[id];
     if (state.listaActiva === id) state.listaActiva = Object.keys(state.listas)[0];
-    guardarEstado();
-    renderListSelector();
-    renderListasManager();
-    renderizar();
-    toast('Lista eliminada');
-    reproducirSonido('eliminar');
+    guardarEstado(); renderListSelector(); renderListasManager(); renderizar();
+    toast('Lista eliminada'); sonido('eliminar');
 }
-
 function renderListasManager() {
     const el = document.getElementById('listasManager');
     if (!el) return;
-    el.innerHTML = Object.entries(state.listas).map(([id, l]) =>
-        `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
-            <span style="font-weight:600">${esc(l.nombre)} <small style="color:var(--muted)">(${l.items.length})</small></span>
-            ${Object.keys(state.listas).length > 1 ? `<button class="btn-sm btn-delete" onclick="eliminarLista('${id}')" aria-label="Eliminar lista">✕</button>` : ''}
+    el.innerHTML = Object.entries(state.listas).map(([id,l]) =>
+        `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+            <span style="font-weight:600;font-size:13px">${esc(l.nombre)} <small style="color:var(--muted)">(${l.items.length})</small></span>
+            ${Object.keys(state.listas).length > 1 ? `<button class="btn-sm btn-delete" onclick="eliminarLista('${id}')">✕</button>` : ''}
         </div>`
     ).join('');
 }
 
-/* ========== CRUD ========== */
+/* CRUD */
 function agregar() {
     const texto = document.getElementById('nuevoItem').value.trim();
     if (!texto) return;
     const cantidad = parseFloat(document.getElementById('nuevoCantidad').value) || 1;
     const unidad = document.getElementById('nuevoUnidad').value.trim() || 'u';
     const categoria = document.getElementById('nuevaCategoria').value;
-
     const arr = items();
-    arr.unshift({
-        id: genId(),
-        texto,
-        cantidad,
-        unidad,
-        categoria,
-        hecho: false,
-        createdAt: Date.now()
-    });
+    arr.unshift({ id: genId(), texto, cantidad, unidad, categoria, hecho: false, createdAt: Date.now() });
     setItems(arr);
+    // historial
+    const key = texto.toLowerCase();
+    state.historial[key] = (state.historial[key] || 0) + 1;
     guardarYRender();
     document.getElementById('nuevoItem').value = '';
     document.getElementById('nuevoCantidad').value = '1';
     document.getElementById('nuevoUnidad').value = '';
+    document.getElementById('suggestions').innerHTML = '';
     document.getElementById('nuevoItem').focus();
-    reproducirSonido('agregar');
-    haptic(15);
+    sonido('agregar'); haptic(15);
 }
 
-document.getElementById('nuevoItem').addEventListener('keypress', e => {
-    if (e.key === 'Enter') agregar();
-});
+document.getElementById('nuevoItem').addEventListener('keypress', e => { if (e.key === 'Enter') agregar(); });
+
+function mostrarSugerencias() {
+    const q = document.getElementById('nuevoItem').value.trim().toLowerCase();
+    const el = document.getElementById('suggestions');
+    if (!q || q.length < 1) { el.innerHTML = ''; return; }
+    const hist = Object.entries(state.historial)
+        .filter(([k]) => k.includes(q))
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 6);
+    // also from current items
+    const fromItems = [...new Set(items().map(i => i.texto.toLowerCase()).filter(t => t.includes(q) && t !== q))];
+    const all = [...new Set([...hist.map(h => h[0]), ...fromItems])].slice(0, 6);
+    el.innerHTML = all.map(s => `<button class="sug-chip" onclick="usarSugerencia('${esc(s)}')">${esc(s)}</button>`).join('');
+}
+function usarSugerencia(texto) {
+    document.getElementById('nuevoItem').value = texto;
+    document.getElementById('suggestions').innerHTML = '';
+    document.getElementById('nuevoItem').focus();
+}
 
 function marcarHecho(id) {
     const arr = items();
     const item = arr.find(i => i.id === id);
     if (!item) return;
     item.hecho = !item.hecho;
-    setItems(arr);
-    guardarYRender();
-    reproducirSonido(item.hecho ? 'check' : 'uncheck');
-    haptic(item.hecho ? 20 : 10);
+    setItems(arr); guardarYRender();
+    sonido(item.hecho ? 'check' : 'uncheck');
+    haptic(item.hecho ? 18 : 8);
 }
 
 function eliminar(id) {
@@ -781,16 +799,11 @@ function eliminar(id) {
     const li = document.querySelector(`li[data-id="${id}"]`);
     if (li) {
         li.classList.add('removing');
-        setTimeout(() => {
-            setItems(items().filter(i => i.id !== id));
-            guardarYRender();
-        }, 250);
+        setTimeout(() => { setItems(items().filter(i => i.id !== id)); guardarYRender(); }, 240);
     } else {
-        setItems(items().filter(i => i.id !== id));
-        guardarYRender();
+        setItems(items().filter(i => i.id !== id)); guardarYRender();
     }
-    reproducirSonido('eliminar');
-    haptic(25);
+    sonido('eliminar'); haptic(22);
 }
 
 function abrirEditar(id) {
@@ -803,295 +816,292 @@ function abrirEditar(id) {
     document.getElementById('editCategoria').value = item.categoria;
     abrirVentana('Editar');
 }
-
 function guardarEdicion() {
     if (!editId) return;
     const arr = items();
     const item = arr.find(i => i.id === editId);
     if (!item) return;
     const texto = document.getElementById('editTexto').value.trim();
-    if (!texto) return toast('El nombre no puede estar vacío');
+    if (!texto) return toast('Nombre vacío');
     item.texto = texto;
     item.cantidad = parseFloat(document.getElementById('editCantidad').value) || 1;
     item.unidad = document.getElementById('editUnidad').value.trim() || 'u';
     item.categoria = document.getElementById('editCategoria').value;
-    setItems(arr);
-    guardarYRender();
-    cerrarVentana('Editar');
-    toast('Producto actualizado');
-    reproducirSonido('check');
-    haptic();
+    setItems(arr); guardarYRender();
+    cerrarVentana('Editar'); toast('Actualizado'); sonido('check'); haptic();
 }
 
 function limpiarComprados() {
     const n = items().filter(i => i.hecho).length;
-    if (n === 0) return toast('No hay comprados');
-    if (!confirm(`¿Eliminar los ${n} productos comprados?`)) return;
-    setItems(items().filter(i => !i.hecho));
-    guardarYRender();
-    reproducirSonido('clear');
-    haptic(30);
-    toast('Comprados eliminados');
+    if (!n) return toast('No hay comprados');
+    if (!confirm(`¿Eliminar ${n} comprados?`)) return;
+    setItems(items().filter(i => !i.hecho)); guardarYRender();
+    sonido('clear'); haptic(28); toast('Comprados eliminados');
 }
 
-/* ========== SORT & FILTER ========== */
+/* SORT / FILTER */
 function setSort(s, btn) {
     state.sort = s;
     document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     renderizar();
 }
-
 function setFilterCat(cat, btn) {
     state.filterCat = cat;
     document.querySelectorAll('#chipsPendientes .chip').forEach(c => c.classList.remove('active'));
     if (btn) btn.classList.add('active');
     renderizar();
 }
-
 function sortItems(arr) {
-    const copy = [...arr];
-    if (state.sort === 'alpha') copy.sort((a,b) => a.texto.localeCompare(b.texto, 'es'));
-    else if (state.sort === 'cat') copy.sort((a,b) => a.categoria.localeCompare(b.categoria, 'es') || a.texto.localeCompare(b.texto, 'es'));
-    else copy.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
-    return copy;
+    const c = [...arr];
+    if (state.sort === 'alpha') c.sort((a,b) => a.texto.localeCompare(b.texto,'es'));
+    else if (state.sort === 'cat') c.sort((a,b) => a.categoria.localeCompare(b.categoria,'es') || a.texto.localeCompare(b.texto,'es'));
+    else c.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    return c;
 }
 
-/* ========== RENDER ========== */
-function guardarYRender() {
-    guardarEstado();
-    renderizar();
+/* DRAG & DROP */
+function onDragStart(e, id) {
+    dragSrcId = id;
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
 }
+function onDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    dragSrcId = null;
+}
+function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const li = e.currentTarget;
+    if (li.getAttribute('data-id') !== dragSrcId) li.classList.add('drag-over');
+}
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function onDrop(e, targetId) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!dragSrcId || dragSrcId === targetId) return;
+    const arr = items();
+    const fromIdx = arr.findIndex(i => i.id === dragSrcId);
+    const toIdx = arr.findIndex(i => i.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, moved);
+    setItems(arr); guardarYRender(); haptic(8);
+}
+
+/* RENDER */
+function guardarYRender() { guardarEstado(); renderizar(); }
 
 function actualizarStats() {
-    const all = items();
-    const total = all.length;
-    const hechos = all.filter(i => i.hecho).length;
-    const pendientes = total - hechos;
-    const set = (id, val) => {
+    const all = items(), total = all.length, hechos = all.filter(i => i.hecho).length, pend = total - hechos;
+    const set = (id, v) => {
         const el = document.getElementById(id);
-        if (el.textContent != val) {
-            el.textContent = val;
-            el.classList.add('stat-bump');
-            setTimeout(() => el.classList.remove('stat-bump'), 200);
-        }
+        if (el.textContent != v) { el.textContent = v; el.classList.add('stat-bump'); setTimeout(() => el.classList.remove('stat-bump'), 180); }
     };
-    set('statTotal', total);
-    set('statDone', hechos);
-    set('statPending', pendientes);
-    document.getElementById('cntPend').textContent = `(${pendientes})`;
+    set('statTotal', total); set('statDone', hechos); set('statPending', pend);
+    document.getElementById('cntPend').textContent = `(${pend})`;
     document.getElementById('cntComp').textContent = `(${hechos})`;
 }
 
-function renderItemHTML(item, showUncheck = false) {
-    const qty = item.cantidad !== 1 || item.unidad !== 'u'
-        ? `<span class="item-qty">${item.cantidad}${item.unidad !== 'u' ? ' '+item.unidad : ''}</span>`
+function renderItemHTML(item, showUncheck, draggable) {
+    const qty = (item.cantidad !== 1 || item.unidad !== 'u')
+        ? `<span class="item-qty">${item.cantidad}${item.unidad !== 'u' ? ' ' + item.unidad : ''}</span>`
         : (item.cantidad > 1 ? `<span class="item-qty">×${item.cantidad}</span>` : '');
-    const cat = item.categoria && item.categoria !== 'Sin categoría'
-        ? `<span class="item-cat">${esc(item.categoria)}</span>` : '';
+    const cat = item.categoria && item.categoria !== 'Sin categoría' ? `<span class="item-cat">${esc(item.categoria)}</span>` : '';
     const checkBtn = showUncheck
-        ? `<button class="btn-sm btn-uncheck" onclick="marcarHecho('${item.id}')" aria-label="Desmarcar">↩</button>`
-        : `<button class="btn-sm btn-check" onclick="marcarHecho('${item.id}')" aria-label="Marcar comprado">✓</button>`;
-    return `
-        ${qty}
-        <div class="item-text">${esc(item.texto)}${cat}</div>
-        <div class="item-actions">
-            ${checkBtn}
-            <button class="btn-sm btn-edit" onclick="abrirEditar('${item.id}')" aria-label="Editar">✎</button>
-            <button class="btn-sm btn-delete" onclick="eliminar('${item.id}')" aria-label="Eliminar">✕</button>
-        </div>`;
+        ? `<button class="btn-sm btn-uncheck" onclick="event.stopPropagation();marcarHecho('${item.id}')" aria-label="Desmarcar">↩</button>`
+        : `<button class="btn-sm btn-check" onclick="event.stopPropagation();marcarHecho('${item.id}')" aria-label="Marcar">✓</button>`;
+    const handle = draggable ? `<span class="drag-handle">⠿</span>` : '';
+    return `${handle}${qty}<div class="item-text">${esc(item.texto)}${cat}</div>
+        <div class="item-actions">${checkBtn}
+        <button class="btn-sm btn-edit" onclick="event.stopPropagation();abrirEditar('${item.id}')" aria-label="Editar">✎</button>
+        <button class="btn-sm btn-delete" onclick="event.stopPropagation();eliminar('${item.id}')" aria-label="Eliminar">✕</button></div>`;
+}
+
+function makeLi(item, idx, showUncheck, draggable) {
+    const li = document.createElement('li');
+    li.setAttribute('data-id', item.id);
+    li.style.animationDelay = `${idx * 28}ms`;
+    if (showUncheck) li.className = 'done';
+    li.innerHTML = renderItemHTML(item, showUncheck, draggable);
+    if (draggable) {
+        li.draggable = true;
+        li.addEventListener('dragstart', e => onDragStart(e, item.id));
+        li.addEventListener('dragend', onDragEnd);
+        li.addEventListener('dragover', onDragOver);
+        li.addEventListener('dragleave', onDragLeave);
+        li.addEventListener('drop', e => onDrop(e, item.id));
+    }
+    return li;
 }
 
 function renderizar() {
     actualizarStats();
     const all = items();
-    const pendientes = sortItems(all.filter(i => !i.hecho));
+    let pendientes = sortItems(all.filter(i => !i.hecho));
     const comprados = sortItems(all.filter(i => i.hecho));
 
-    let filteredPend = pendientes;
-    if (state.filterCat && state.filterCat !== 'todas') {
-        filteredPend = pendientes.filter(i => i.categoria === state.filterCat);
-    }
+    const searchQ = (document.getElementById('searchPend')?.value || '').trim().toLowerCase();
+    if (searchQ) pendientes = pendientes.filter(i => i.texto.toLowerCase().includes(searchQ) || (i.categoria||'').toLowerCase().includes(searchQ));
+    if (state.filterCat && state.filterCat !== 'todas') pendientes = pendientes.filter(i => i.categoria === state.filterCat);
 
-    const catsUsed = [...new Set(pendientes.map(i => i.categoria))];
+    const catsUsed = [...new Set(all.filter(i => !i.hecho).map(i => i.categoria))];
     const chipsEl = document.getElementById('chipsPendientes');
     if (chipsEl) {
         chipsEl.innerHTML = `<button class="chip ${state.filterCat==='todas'?'active':''}" onclick="setFilterCat('todas',this)">Todas</button>` +
             catsUsed.map(c => `<button class="chip ${state.filterCat===c?'active':''}" onclick="setFilterCat('${esc(c)}',this)">${esc(c)}</button>`).join('');
     }
 
+    // Preview
     const preview = document.getElementById('previewList');
-    const previewItems = pendientes.slice(0, 5);
-    document.getElementById('previewCount').textContent = pendientes.length > 5 ? `+${pendientes.length - 5} más` : '';
-    if (previewItems.length === 0) {
+    const pItems = sortItems(all.filter(i => !i.hecho)).slice(0, 5);
+    document.getElementById('previewCount').textContent = all.filter(i=>!i.hecho).length > 5 ? `+${all.filter(i=>!i.hecho).length-5} más` : '';
+    preview.innerHTML = '';
+    if (!pItems.length) {
         preview.innerHTML = '<li class="empty-state" style="animation:none;background:transparent;border:none">¡Agrega tu primer producto!</li>';
     } else {
-        preview.innerHTML = previewItems.map((item, idx) => {
-            const li = document.createElement('li');
-            li.setAttribute('data-id', item.id);
-            li.style.animationDelay = `${idx * 40}ms`;
-            li.innerHTML = renderItemHTML(item);
-            return li.outerHTML;
-        }).join('');
+        pItems.forEach((item, idx) => preview.appendChild(makeLi(item, idx, false, true)));
     }
 
+    // Full pendientes
     const listaP = document.getElementById('listaPendientes');
-    if (filteredPend.length === 0) {
+    listaP.innerHTML = '';
+    if (!pendientes.length) {
         listaP.innerHTML = '<li class="empty-state" style="animation:none;background:transparent;border:none">No hay pendientes</li>';
     } else {
-        listaP.innerHTML = filteredPend.map((item, idx) => {
-            const li = document.createElement('li');
-            li.setAttribute('data-id', item.id);
-            li.style.animationDelay = `${idx * 30}ms`;
-            li.innerHTML = renderItemHTML(item);
-            return li.outerHTML;
-        }).join('');
+        pendientes.forEach((item, idx) => listaP.appendChild(makeLi(item, idx, false, true)));
     }
 
+    // Comprados
     const listaC = document.getElementById('listaComprados');
-    if (comprados.length === 0) {
+    listaC.innerHTML = '';
+    if (!comprados.length) {
         listaC.innerHTML = '<li class="empty-state" style="animation:none;background:transparent;border:none">Aún no has comprado nada</li>';
     } else {
-        listaC.innerHTML = comprados.map((item, idx) => {
-            const li = document.createElement('li');
-            li.className = 'done';
-            li.setAttribute('data-id', item.id);
-            li.style.animationDelay = `${idx * 30}ms`;
-            li.innerHTML = renderItemHTML(item, true);
-            return li.outerHTML;
-        }).join('');
+        comprados.forEach((item, idx) => listaC.appendChild(makeLi(item, idx, true, false)));
     }
-
     renderListasManager();
 }
 
-function esc(text) {
-    const d = document.createElement('div');
-    d.textContent = text;
-    return d.innerHTML;
-}
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
-/* ========== MODALS ========== */
+/* MODALS */
 function abrirVentana(nombre) {
     document.getElementById('overlay').classList.add('activo');
     document.getElementById('ventana' + nombre).classList.add('activo');
     if (nombre === 'Ajustes') renderListasManager();
-    reproducirSonido('abrir');
-    haptic(8);
+    if (nombre === 'Pendientes') { const s = document.getElementById('searchPend'); if (s) s.value = ''; }
+    sonido('abrir'); haptic(6);
 }
-
 function cerrarVentana(nombre) {
     document.getElementById('ventana' + nombre).classList.remove('activo');
-    if (!document.querySelector('.ventana.activo')) {
-        document.getElementById('overlay').classList.remove('activo');
-    }
-    reproducirSonido('cerrar');
+    if (!document.querySelector('.ventana.activo')) document.getElementById('overlay').classList.remove('activo');
+    sonido('cerrar');
 }
-
 function cerrarTodas() {
     document.querySelectorAll('.ventana.activo').forEach(v => v.classList.remove('activo'));
     document.getElementById('overlay').classList.remove('activo');
-    reproducirSonido('cerrar');
+    sonido('cerrar');
 }
 
-/* ========== SHARE ========== */
-async function compartirLista() {
+/* MODO COMPRA */
+function abrirModoCompra() {
+    renderModoCompra();
+    abrirVentana('ModoCompra');
+}
+function renderModoCompra() {
     const all = items();
-    const pendientes = all.filter(i => !i.hecho);
-    const comprados = all.filter(i => i.hecho);
-    const nombreLista = state.listas[state.listaActiva]?.nombre || 'Mis Compras';
+    const pend = all.filter(i => !i.hecho);
+    const done = all.filter(i => i.hecho).length;
+    const total = all.length;
+    document.getElementById('modoStats').textContent = `${done} de ${total} comprados`;
+    document.getElementById('modoBar').style.width = total ? `${(done/total)*100}%` : '0%';
+    const el = document.getElementById('modoLista');
+    if (!pend.length && !all.length) {
+        el.innerHTML = '<div class="empty-state">Lista vacía. Agrega productos primero.</div>';
+        return;
+    }
+    // show pendientes first, then done (collapsed feel)
+    const show = [...pend, ...all.filter(i => i.hecho)];
+    el.innerHTML = show.map(item => {
+        const qty = (item.cantidad !== 1 || item.unidad !== 'u')
+            ? `<span class="modo-qty">${item.cantidad}${item.unidad !== 'u' ? ' '+item.unidad : ''}</span>`
+            : (item.cantidad > 1 ? `<span class="modo-qty">×${item.cantidad}</span>` : '');
+        return `<div class="modo-item ${item.hecho?'done':''}" onclick="marcarHechoModo('${item.id}')">
+            <div class="modo-check">${item.hecho ? '✓' : ''}</div>
+            <div class="modo-text">${esc(item.texto)}</div>
+            ${qty}
+        </div>`;
+    }).join('');
+}
+function marcarHechoModo(id) {
+    marcarHecho(id);
+    renderModoCompra();
+}
 
-    let texto = `🛒 ${nombreLista}\n`;
-    texto += `━━━━━━━━━━━━━━\n`;
-    if (pendientes.length) {
-        texto += `\n📋 PENDIENTES (${pendientes.length})\n`;
-        pendientes.forEach(i => {
-            const qty = i.cantidad !== 1 || i.unidad !== 'u' ? `${i.cantidad}${i.unidad !== 'u' ? i.unidad : ''} ` : (i.cantidad > 1 ? `×${i.cantidad} ` : '');
-            texto += `☐ ${qty}${i.texto}${i.categoria !== 'Sin categoría' ? ` (${i.categoria})` : ''}\n`;
+/* SHARE */
+async function compartirLista() {
+    const all = items(), pend = all.filter(i => !i.hecho), done = all.filter(i => i.hecho);
+    const nombre = state.listas[state.listaActiva]?.nombre || 'Mis Compras';
+    let t = `🛒 ${nombre}\n━━━━━━━━━━━━━━\n`;
+    if (pend.length) {
+        t += `\n📋 PENDIENTES (${pend.length})\n`;
+        pend.forEach(i => {
+            const q = (i.cantidad !== 1 || i.unidad !== 'u') ? `${i.cantidad}${i.unidad!=='u'?i.unidad:''} ` : (i.cantidad>1?`×${i.cantidad} `:'');
+            t += `☐ ${q}${i.texto}${i.categoria!=='Sin categoría'?` (${i.categoria})`:''}\n`;
         });
     }
-    if (comprados.length) {
-        texto += `\n✓ COMPRADOS (${comprados.length})\n`;
-        comprados.forEach(i => {
-            const qty = i.cantidad !== 1 || i.unidad !== 'u' ? `${i.cantidad}${i.unidad !== 'u' ? i.unidad : ''} ` : '';
-            texto += `☑ ${qty}${i.texto}\n`;
+    if (done.length) {
+        t += `\n✓ COMPRADOS (${done.length})\n`;
+        done.forEach(i => {
+            const q = (i.cantidad !== 1 || i.unidad !== 'u') ? `${i.cantidad}${i.unidad!=='u'?i.unidad:''} ` : '';
+            t += `☑ ${q}${i.texto}\n`;
         });
     }
-    texto += `\n━━━━━━━━━━━━━━\nGenerado con Mis Compras 🛒`;
-
-    reproducirSonido('share');
-    haptic(15);
-
+    t += `\n━━━━━━━━━━━━━━\nGenerado con Mis Compras 🛒`;
+    sonido('share'); haptic(12);
     if (navigator.share) {
-        try {
-            await navigator.share({ title: nombreLista, text: texto });
-            toast('¡Lista compartida!');
-        } catch(e) {
-            if (e.name !== 'AbortError') copiarAlPortapapeles(texto);
-        }
-    } else {
-        copiarAlPortapapeles(texto);
-    }
+        try { await navigator.share({ title: nombre, text: t }); toast('¡Compartida!'); }
+        catch(e) { if (e.name !== 'AbortError') copiar(t); }
+    } else copiar(t);
+}
+function copiar(t) {
+    navigator.clipboard.writeText(t).then(() => toast('Copiada al portapapeles')).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta); toast('Copiada');
+    });
 }
 
-function copiarAlPortapapeles(texto) {
-    navigator.clipboard.writeText(texto).then(() => toast('Lista copiada al portapapeles'))
-        .catch(() => {
-            const ta = document.createElement('textarea');
-            ta.value = texto;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            toast('Lista copiada');
-        });
-}
-
-/* ========== EXPORT / IMPORT ========== */
+/* EXPORT / IMPORT */
 function exportarDatos() {
-    const data = JSON.stringify(state, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mis-compras-backup-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Datos exportados');
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `mis-compras-${new Date().toISOString().slice(0,10)}.json`; a.click();
+    URL.revokeObjectURL(a.href); toast('Exportado');
 }
-
-function importarDatos() {
-    document.getElementById('importFile').click();
-}
-
+function importarDatos() { document.getElementById('importFile').click(); }
 function handleImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
         try {
-            const data = JSON.parse(ev.target.result);
-            if (data.listas) {
-                if (!confirm('¿Reemplazar todos los datos actuales con el archivo importado?')) return;
-                state.listas = data.listas;
-                state.listaActiva = data.listaActiva || Object.keys(data.listas)[0];
-                if (data.sound !== undefined) state.sound = data.sound;
-                if (data.haptic !== undefined) state.haptic = data.haptic;
-                if (data.dark !== undefined) state.dark = data.dark;
-                guardarEstado();
-                aplicarTema();
-                renderListSelector();
-                renderizar();
-                toast('Datos importados correctamente');
-            } else {
-                toast('Archivo no válido');
-            }
-        } catch(err) {
-            toast('Error al importar');
-        }
+            const d = JSON.parse(ev.target.result);
+            if (!d.listas) return toast('Archivo no válido');
+            if (!confirm('¿Reemplazar todos los datos?')) return;
+            state.listas = d.listas;
+            state.listaActiva = d.listaActiva || Object.keys(d.listas)[0];
+            if (d.historial) state.historial = d.historial;
+            if (d.sound !== undefined) state.sound = d.sound;
+            if (d.haptic !== undefined) state.haptic = d.haptic;
+            if (d.dark !== undefined) state.dark = d.dark;
+            guardarEstado(); aplicarTema(); renderListSelector(); renderizar();
+            toast('Importado correctamente');
+        } catch(err) { toast('Error al importar'); }
     };
-    reader.readAsText(file);
-    e.target.value = '';
+    r.readAsText(f); e.target.value = '';
 }
 </script>
 </body>
