@@ -1,13 +1,13 @@
 {
   "name": "Mis Compras",
   "short_name": "Compras",
-  "description": "Lista de compras inteligente",
+  "description": "Lista de compras inteligente con categorías, cantidades y múltiples listas",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1a0f05",
-  "theme_color": "#ff6b1a",
+  "background_color": "#fefcf8",
+  "theme_color": "#ea580c",
   "lang": "es",
   "categories": [
     "productivity",

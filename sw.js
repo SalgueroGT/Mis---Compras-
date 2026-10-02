@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-compras-v1';
+const CACHE_NAME = 'mis-compras-v2';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -6,7 +6,6 @@ const ASSETS_TO_CACHE = [
     './icon.png'
 ];
 
-// Instalar - cachear archivos
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME).then(function(cache) {
@@ -16,7 +15,6 @@ self.addEventListener('install', function(event) {
     self.skipWaiting();
 });
 
-// Activar - limpiar caches viejos
 self.addEventListener('activate', function(event) {
     event.waitUntil(
         caches.keys().then(function(cacheNames) {
@@ -32,12 +30,10 @@ self.addEventListener('activate', function(event) {
     self.clients.claim();
 });
 
-// Fetch - servir desde cache, actualizar en segundo plano
 self.addEventListener('fetch', function(event) {
     event.respondWith(
         caches.match(event.request).then(function(cachedResponse) {
             if (cachedResponse) {
-                // Actualizar cache en segundo plano
                 fetch(event.request).then(function(response) {
                     if (response && response.status === 200) {
                         const responseClone = response.clone();
@@ -48,7 +44,6 @@ self.addEventListener('fetch', function(event) {
                 }).catch(function() {});
                 return cachedResponse;
             }
-            // Si no esta en cache, intentar de red
             return fetch(event.request).then(function(response) {
                 if (!response || response.status !== 200 || response.type !== 'basic') {
                     return response;
