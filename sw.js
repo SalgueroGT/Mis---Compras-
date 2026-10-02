@@ -1,9 +1,13 @@
-const CACHE_NAME = 'mis-compras-v6';
+const CACHE_NAME = 'mis-compras-v7';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './manifest.json',
-    './icon.png'
+    './icon.png',
+    './bg/bg1.jpg',
+    './bg/bg2.jpg',
+    './bg/bg3.jpg',
+    './bg/bg4.jpg'
 ];
 
 self.addEventListener('install', function(event) {
