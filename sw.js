@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-compras-v4';
+const CACHE_NAME = 'mis-compras-v5';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
